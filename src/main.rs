@@ -54,27 +54,17 @@ mod tests {
         ("ababaababb", true),
         ("abbabbbbaaa", false),
     ];
-    
-    const LR0_INPUTS: [(&str, bool); 4] = [
-        ("ab", true),
-        ("a", false),
-        ("b", false),
-        ("", false)
-    ];
-    
-    const LR1_INPUTS: [(&str, bool); 4] = [
-        ("b", true),
-        ("bb", true),
-        ("bbb", false),
-        ("", false)
-    ];
-    
+
+    const LR0_INPUTS: [(&str, bool); 4] = [("ab", true), ("a", false), ("b", false), ("", false)];
+
+    const LR1_INPUTS: [(&str, bool); 4] = [("b", true), ("bb", true), ("bbb", false), ("", false)];
+
     const LR2_INPUTS: [(&str, bool); 5] = [
         ("bb", true),
         ("bbb", true),
         ("bbbb", false),
         ("b", false),
-        ("", false)
+        ("", false),
     ];
 
     fn do_earley_test(grammar: &AdvancedGrammar, inputs: &[(&str, bool)]) {
@@ -151,14 +141,14 @@ mod tests {
         assert!(LR.is_ok());
         do_LR_test(&LR.unwrap(), &LR0_INPUTS);
     }
-    
+
     #[test]
     fn test_lr_0_lr_1() {
         let grammar = setup(Path::new("test_grammars/LR1_min.bnf"));
         let LR = LRParser::<0>::try_from_advanced_grammar(grammar);
         assert!(LR.is_err());
     }
-    
+
     #[test]
     fn test_lr_1_lr_1() {
         let grammar = setup(Path::new("test_grammars/LR1_min.bnf"));
@@ -166,14 +156,14 @@ mod tests {
         assert!(LR.is_ok());
         do_LR_test(&LR.unwrap(), &LR1_INPUTS);
     }
-    
+
     #[test]
     fn test_lr_1_lr_2() {
         let grammar = setup(Path::new("test_grammars/LR2_min.bnf"));
         let LR = LRParser::<1>::try_from_advanced_grammar(grammar);
         assert!(LR.is_err());
     }
-    
+
     #[test]
     fn test_lr_2_lr_2() {
         let grammar = setup(Path::new("test_grammars/LR2_min.bnf"));
@@ -184,16 +174,19 @@ mod tests {
 }
 
 fn main() {
+    // To log earley parsing process, uncomment the following line
     // env_logger::Builder::from_env(Env::default().default_filter_or("trace")).format(|buf, record| {
     //     writeln!(
     //         buf, "{}", record.args()
     //     )
     // }).init();
+
     let grammar = AdvancedGrammar::from_basic_grammar(BasicGrammar::from_file(Path::new(
         "test_grammars/LR1_min.bnf",
     )));
-    let LR = LRParser::<1>::try_from_advanced_grammar(grammar);
-    println!("{}", LR.err().unwrap());
-    // assert!(LR.is_err());
-    // println!("{}", LR.unwrap().to_string());
+    let LR = LRParser::<1>::try_from_advanced_grammar(grammar.clone()).unwrap();
+    let word = "aabb".to_string();
+    let result_earley = earley_parse(grammar, &word);
+    let result_lr = LR.parse(&word);
+    assert_eq!(result_earley, result_lr.is_ok());
 }
