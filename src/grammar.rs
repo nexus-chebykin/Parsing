@@ -29,7 +29,7 @@ impl Symbol {
         match self {
             Symbol::Terminal(t) => t.char.to_string(),
             Symbol::NonTerminal(nt) => {
-                grammar.nonterminals_mapping.index_to_human_name[nt.index].clone()
+                grammar.nonterminals_mapping.index_to_name[nt.index].clone()
             }
         }
     }
@@ -47,14 +47,14 @@ pub struct Rule {
 }
 impl Rule {
     pub fn to_parts(&self, grammar: &BasicGrammar) -> (String, String) {
-        let lhs = grammar.nonterminals_mapping.index_to_human_name[self.lhs.index].clone();
+        let lhs = grammar.nonterminals_mapping.index_to_name[self.lhs.index].clone();
         let rhs = self
             .rhs
             .iter()
             .map(|symbol| match symbol {
                 Symbol::Terminal(terminal) => terminal.char.to_string(),
                 Symbol::NonTerminal(nonterminal) => {
-                    grammar.nonterminals_mapping.index_to_human_name[nonterminal.index].clone()
+                    grammar.nonterminals_mapping.index_to_name[nonterminal.index].clone()
                 }
             })
             .collect::<Vec<String>>()
@@ -71,18 +71,18 @@ impl Rule {
 }
 #[derive(Debug, Clone, Default)]
 pub struct NonterminalsMapping {
-    pub human_name_to_index: HashMap<String, usize>,
-    pub index_to_human_name: Vec<String>,
+    pub name_to_index: HashMap<String, usize>,
+    pub index_to_name: Vec<String>,
 }
 
 impl NonterminalsMapping {
     pub fn insert_nonterminal(&mut self, human_name: String) -> NonTerminal {
-        let index = match self.human_name_to_index.get(&human_name) {
+        let index = match self.name_to_index.get(&human_name) {
             Some(index) => *index,
             None => {
-                let index = self.human_name_to_index.len();
-                self.human_name_to_index.insert(human_name.clone(), index);
-                self.index_to_human_name.push(human_name);
+                let index = self.name_to_index.len();
+                self.name_to_index.insert(human_name.clone(), index);
+                self.index_to_name.push(human_name);
                 index
             }
         };
@@ -204,7 +204,7 @@ impl AdvancedGrammar {
             result
                 .basic_grammar
                 .nonterminals_mapping
-                .human_name_to_index
+                .name_to_index
                 .len(),
             Vec::new(),
         );

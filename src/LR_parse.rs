@@ -139,22 +139,20 @@ impl<const K: usize> LRParser<K> {
 
     pub fn recursive_get_first(
         alpha: &[Symbol],
-        position_in_alpha: usize,
         position_in_fill: usize,
         to_fill: &mut AheadString<K>,
         first: &[HashSet<AheadString<K>>],
     ) -> HashSet<AheadString<K>> {
         let mut result = HashSet::new();
-        if position_in_alpha == alpha.len() || position_in_fill == K {
+        if alpha.is_empty() || position_in_fill == K {
             result.insert(*to_fill);
             return result;
         }
-        match alpha[position_in_alpha] {
+        match alpha[0] {
             Symbol::Terminal(terminal) => {
                 to_fill[position_in_fill] = terminal;
                 result.extend(Self::recursive_get_first(
-                    alpha,
-                    position_in_alpha + 1,
+                    &alpha[1..],
                     position_in_fill + 1,
                     to_fill,
                     first,
@@ -172,8 +170,7 @@ impl<const K: usize> LRParser<K> {
                         to_fill[position_in_fill + i] = *c;
                     }
                     result.extend(Self::recursive_get_first(
-                        alpha,
-                        position_in_alpha + 1,
+                        &alpha[1..],
                         new_position_in_fill,
                         to_fill,
                         first,
@@ -193,7 +190,7 @@ impl<const K: usize> LRParser<K> {
             grammar
                 .basic_grammar
                 .nonterminals_mapping
-                .human_name_to_index
+                .name_to_index
                 .len()
         ];
         let mut changed = true;
@@ -211,7 +208,7 @@ impl<const K: usize> LRParser<K> {
         first
     }
     pub fn get_first(&self, string: Vec<Symbol>) -> HashSet<AheadString<K>> {
-        Self::recursive_get_first(&string, 0, 0, &mut [Self::EOF_SYMBOL; K], &self.first)
+        Self::recursive_get_first(&string,  0, &mut [Self::EOF_SYMBOL; K], &self.first)
     }
 
     fn add_situation(&mut self, situation: LRSituation<K>) -> (usize, bool) {
@@ -343,9 +340,7 @@ impl<const K: usize> LRParser<K> {
             situations_subset_to_index: HashMap::new(),
             index_to_situations_subset: Vec::new(),
         };
-        // let mut is_finishing = Vec::new();
-        let mut q: VecDeque<usize> = VecDeque::new();
-        // Returns sorted expanded subset
+        let mut situations_subset_to_process: VecDeque<usize> = VecDeque::new();
 
         let starting_situation = LRSituation {
             rule_index: result.grammar.basic_grammar.rules.len() - 1,
@@ -355,64 +350,67 @@ impl<const K: usize> LRParser<K> {
         let starting_situations_subset: Vec<usize> =
             vec![(result.add_situation(starting_situation).0).clone()];
         let starting_situations_subset = result.closure(starting_situations_subset);
-        q.push_back(result.add_situations_subset(starting_situations_subset).0);
-        while !q.is_empty() {
-            let current_subset_index = q.pop_front().unwrap();
-
-            let current_subset_ptr =
-                &result.index_to_situations_subset[current_subset_index] as *const Vec<usize>;
-            let current_subset = unsafe { &*current_subset_ptr };
-            // I dont really like it, but do not know any better solution
-
-            let mut possible_moves = HashMap::new();
-            for situation in current_subset.iter().cloned() {
-                let current_situation = &result.index_to_situation[situation].clone();
-                let finished = current_situation.is_finished(&result.grammar);
-                if finished {
-                    if current_situation.rule_index == result.grammar.basic_grammar.rules.len() - 1
-                    {
-                        result.update_action(
-                            current_subset_index,
-                            &current_situation.ahead,
-                            Action::Accept,
-                        )?;
-                    } else {
-                        result.update_action(
-                            current_subset_index,
-                            &current_situation.ahead,
-                            Action::Reduce(current_situation.rule_index),
-                        )?;
-                    }
-                    continue;
-                }
-                let next_symbol = current_situation.get_next_symbol(&result.grammar).unwrap();
-                possible_moves
-                    .entry(next_symbol)
-                    .or_insert_with(Vec::new)
-                    .push(
-                        result
-                            .add_situation(current_situation.get_next_situation())
-                            .0,
-                    );
-                let beta2_v = current_situation.get_symbols_after_dot(&result.grammar);
-                if beta2_v.is_empty() {
-                    continue;
-                }
-                let first_beta2_v = result.get_first(beta2_v);
-                for possible_ahead in first_beta2_v {
-                    result.update_action(current_subset_index, &possible_ahead, Action::Shift)?;
-                }
-            }
-            for (symbol, next_situations) in possible_moves {
-                let next_situations = result.closure(next_situations);
-                let (next_subset_index, inserted) = result.add_situations_subset(next_situations);
-                if inserted {
-                    q.push_back(next_subset_index);
-                }
-                result.automaton[current_subset_index].insert(symbol, next_subset_index);
-            }
+        situations_subset_to_process.push_back(result.add_situations_subset(starting_situations_subset).0);
+        
+        while !situations_subset_to_process.is_empty() {
+            let current_subset_index = situations_subset_to_process.pop_front().unwrap();
+            result.process_subset(current_subset_index, &mut situations_subset_to_process)?;
         }
         Ok(result)
+    }
+    fn process_subset(&mut self, current_subset_index: usize, situations_subset_to_process: &mut VecDeque<usize>) -> Result<(), String> {
+        let current_subset_ptr =
+            &self.index_to_situations_subset[current_subset_index] as *const Vec<usize>;
+        let current_subset = unsafe { &*current_subset_ptr };
+        // I dont really like it, but do not know any better solution
+        let mut possible_moves = HashMap::new();
+        for situation in current_subset.iter().cloned() {
+            let current_situation = &self.index_to_situation[situation].clone();
+            let finished = current_situation.is_finished(&self.grammar);
+            if finished {
+                if current_situation.rule_index == self.grammar.basic_grammar.rules.len() - 1
+                {
+                    self.update_action(
+                        current_subset_index,
+                        &current_situation.ahead,
+                        Action::Accept,
+                    )?;
+                } else {
+                    self.update_action(
+                        current_subset_index,
+                        &current_situation.ahead,
+                        Action::Reduce(current_situation.rule_index),
+                    )?;
+                }
+                continue;
+            }
+            let next_symbol = current_situation.get_next_symbol(&self.grammar).unwrap();
+            possible_moves
+                .entry(next_symbol)
+                .or_insert_with(Vec::new)
+                .push(
+                    self
+                        .add_situation(current_situation.get_next_situation())
+                        .0,
+                );
+            let beta2_v = current_situation.get_symbols_after_dot(&self.grammar);
+            if beta2_v.is_empty() {
+                continue;
+            }
+            let first_beta2_v = self.get_first(beta2_v);
+            for possible_ahead in first_beta2_v {
+                self.update_action(current_subset_index, &possible_ahead, Action::Shift)?;
+            }
+        }
+        for (symbol, next_situations) in possible_moves {
+            let next_situations = self.closure(next_situations);
+            let (next_subset_index, inserted) = self.add_situations_subset(next_situations);
+            if inserted {
+                situations_subset_to_process.push_back(next_subset_index);
+            }
+            self.automaton[current_subset_index].insert(symbol, next_subset_index);
+        }
+        Ok(())
     }
     pub fn to_string(&self) -> String {
         let mut result = String::new();
@@ -423,7 +421,7 @@ impl<const K: usize> LRParser<K> {
                 self.grammar
                     .basic_grammar
                     .nonterminals_mapping
-                    .index_to_human_name[nonterminal_index],
+                    .index_to_name[nonterminal_index],
                 starts
             );
         }

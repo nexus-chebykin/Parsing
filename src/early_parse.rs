@@ -31,10 +31,10 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
     }
     #[allow(non_snake_case)]
     // Not completed - completed
-    let mut D: Vec<(Vec<EarleySituation>, Vec<EarleySituation>)> =
+    let mut situations_by_scanned_symbols: Vec<(Vec<EarleySituation>, Vec<EarleySituation>)> =
         vec![(Vec::new(), Vec::new()); word.len() + 1];
 
-    let mut q = VecDeque::new();
+    let mut situations_to_process = VecDeque::new();
     let mut was = Vec::with_capacity(grammar.basic_grammar.rules.len());
     for i in 0..grammar.basic_grammar.rules.len() {
         was.push(vec![
@@ -42,7 +42,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
             grammar.basic_grammar.rules[i].rhs.len() + 1
         ]);
     }
-    q.push_back(EarleySituation {
+    situations_to_process.push_back(EarleySituation {
         rule_index: grammar.basic_grammar.rules.len() - 1,
         dot: 0,
         asker: 0,
@@ -51,10 +51,10 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
     trace!("Starting the parsing");
     trace!(
         "{} {CONTAINS} D0: Initial situation",
-        q[0].to_string(&grammar.basic_grammar)
+        situations_to_process[0].to_string(&grammar.basic_grammar)
     );
 
-    let mut add_to_q =
+    let mut add_to_processing_queue =
         |situation: EarleySituation, current_layer: i32, queue: &mut VecDeque<EarleySituation>| {
             if was[situation.rule_index][situation.dot][situation.asker] != current_layer {
                 was[situation.rule_index][situation.dot][situation.asker] = current_layer;
@@ -65,11 +65,11 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
         };
     let mut current_layer = 0;
     loop {
-        while let Some(situation) = q.pop_front() {
+        while let Some(situation) = situations_to_process.pop_front() {
             let rule = &grammar.basic_grammar.rules[situation.rule_index];
             if situation.dot == rule.rhs.len() {
                 // Situation is complete
-                for to_complete in &D[situation.asker].0 {
+                for to_complete in &situations_by_scanned_symbols[situation.asker].0 {
                     let to_complete_rule = &grammar.basic_grammar.rules[to_complete.rule_index];
                     if to_complete.dot < to_complete_rule.rhs.len()
                         && to_complete_rule.rhs[to_complete.dot]
@@ -80,7 +80,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                             dot: to_complete.dot + 1,
                             asker: to_complete.asker,
                         };
-                        let added = add_to_q(new_situation, current_layer as i32, &mut q);
+                        let added = add_to_processing_queue(new_situation, current_layer as i32, &mut situations_to_process);
                         if added {
                             trace!(
                                 "{} {CONTAINS} D{current_layer}: was completed by {} {CONTAINS} D{current_layer} from D{}",
@@ -91,10 +91,10 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                         }
                     }
                 }
-                D[current_layer].1.push(situation);
+                situations_by_scanned_symbols[current_layer].1.push(situation);
             } else {
                 // Maybe we can be completed further?
-                for completer in &D[current_layer].1 {
+                for completer in &situations_by_scanned_symbols[current_layer].1 {
                     let completer_rule = &grammar.basic_grammar.rules[completer.rule_index];
                     if completer.dot == completer_rule.rhs.len()
                         && Symbol::NonTerminal(completer_rule.lhs.clone())
@@ -105,7 +105,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                             dot: situation.dot + 1,
                             asker: completer.asker,
                         };
-                        let added = add_to_q(new_situation, current_layer as i32, &mut q);
+                        let added = add_to_processing_queue(new_situation, current_layer as i32, &mut situations_to_process);
                         if added {
                             trace!(
                                 "{} {CONTAINS} D{}: was completed by {} {CONTAINS} D{current_layer} from D{}",
@@ -125,7 +125,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                                 dot: 0,
                                 asker: current_layer,
                             };
-                            let added = add_to_q(new_situation, current_layer as i32, &mut q);
+                            let added = add_to_processing_queue(new_situation, current_layer as i32, &mut situations_to_process);
                             if added {
                                 trace!(
                                     "{} {CONTAINS} D{}: was predicted from {} {CONTAINS} D{current_layer} using rule {}",
@@ -139,14 +139,14 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                     }
                     Symbol::Terminal(_) => {}
                 }
-                D[current_layer].0.push(situation);
+                situations_by_scanned_symbols[current_layer].0.push(situation);
             }
         }
         if current_layer == word.len() {
             break;
         }
         current_layer += 1;
-        for situation in &D[current_layer - 1].0 {
+        for situation in &situations_by_scanned_symbols[current_layer - 1].0 {
             let rule = &grammar.basic_grammar.rules[situation.rule_index];
             if situation.dot < rule.rhs.len() {
                 match rule.rhs[situation.dot] {
@@ -158,14 +158,14 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                                 dot: situation.dot + 1,
                                 asker: situation.asker,
                             };
-                            let added = add_to_q(
+                            let added = add_to_processing_queue(
                                 EarleySituation {
                                     rule_index: situation.rule_index,
                                     dot: situation.dot + 1,
                                     asker: situation.asker,
                                 },
                                 current_layer as i32,
-                                &mut q,
+                                &mut situations_to_process,
                             );
                             if added {
                                 trace!(
@@ -182,7 +182,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
             }
         }
     }
-    D.last().unwrap().1.contains(&EarleySituation {
+    situations_by_scanned_symbols.last().unwrap().1.contains(&EarleySituation {
         rule_index: grammar.basic_grammar.rules.len() - 1,
         dot: 1,
         asker: 0,
