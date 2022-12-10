@@ -1,13 +1,14 @@
 use std::cell::Cell;
 use std::cmp::min;
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::hash_map::Entry;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Iter, Path};
 use std::vec;
 
 const EPSILON_SYMBOL: Terminal = Terminal { char: 'ε' };
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Terminal {
     pub char: char,
@@ -28,9 +29,7 @@ impl Symbol {
     pub fn to_string(&self, grammar: &BasicGrammar) -> String {
         match self {
             Symbol::Terminal(t) => t.char.to_string(),
-            Symbol::NonTerminal(nt) => {
-                grammar.nonterminals_mapping.index_to_name[nt.index].clone()
-            }
+            Symbol::NonTerminal(nt) => grammar.nonterminals_mapping.index_to_name[nt.index].clone(),
         }
     }
     pub fn is_nonterminal(&self) -> bool {
@@ -40,11 +39,13 @@ impl Symbol {
         }
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct Rule {
     pub lhs: NonTerminal,
     pub rhs: Vec<Symbol>,
 }
+
 impl Rule {
     pub fn to_parts(&self, grammar: &BasicGrammar) -> (String, String) {
         let lhs = grammar.nonterminals_mapping.index_to_name[self.lhs.index].clone();
@@ -69,6 +70,7 @@ impl Rule {
         format!("{} -> {}", lhs, rhs)
     }
 }
+
 #[derive(Debug, Clone, Default)]
 pub struct NonterminalsMapping {
     pub name_to_index: HashMap<String, usize>,
@@ -127,39 +129,39 @@ impl BasicGrammar {
                 part = part.trim();
                 if part == "ε" {
                     continue;
-                } else {
-                    let mut current_nonterminal = String::new();
-                    let mut started = false;
-                    for c in part.chars() {
-                        if started {
-                            if c == '>' {
-                                possible_rhs.last_mut().unwrap().push(
-                                    if current_nonterminal == "SPACE" {
-                                        Symbol::Terminal(Terminal { char: ' ' })
-                                    } else {
-                                        Symbol::NonTerminal(
-                                            result
-                                                .nonterminals_mapping
-                                                .insert_nonterminal(current_nonterminal),
-                                        )
-                                    },
-                                );
-                                current_nonterminal = String::new();
-                                started = false;
-                            } else {
-                                current_nonterminal.push(c);
-                            }
+                }
+                let mut current_nonterminal = String::new();
+                let mut started = false;
+                for c in part.chars() {
+                    if !started {
+                        if c == '<' {
+                            started = true;
                         } else {
-                            if c == '<' {
-                                started = true;
-                            } else {
-                                possible_rhs
-                                    .last_mut()
-                                    .unwrap()
-                                    .push(Symbol::Terminal(Terminal { char: c }));
-                            }
+                            possible_rhs
+                                .last_mut()
+                                .unwrap()
+                                .push(Symbol::Terminal(Terminal { char: c }));
                         }
+                        continue;
                     }
+                    if c != '>' {
+                        current_nonterminal.push(c);
+                        continue;
+                    }
+                    possible_rhs
+                        .last_mut()
+                        .unwrap()
+                        .push(if current_nonterminal == "SPACE" {
+                            Symbol::Terminal(Terminal { char: ' ' })
+                        } else {
+                            Symbol::NonTerminal(
+                                result
+                                    .nonterminals_mapping
+                                    .insert_nonterminal(current_nonterminal),
+                            )
+                        });
+                    current_nonterminal = String::new();
+                    started = false;
                 }
             }
             for rhs in possible_rhs {

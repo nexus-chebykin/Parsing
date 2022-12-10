@@ -1,6 +1,8 @@
-use crate::grammar::{AdvancedGrammar, NonTerminal, Rule, Symbol, Terminal, BasicGrammar};
 use std::collections::VecDeque;
+
 use log::trace;
+
+use crate::grammar::{AdvancedGrammar, BasicGrammar, NonTerminal, Rule, Symbol, Terminal};
 
 #[allow(dead_code)]
 const EPSILON: char = 'ε';
@@ -30,8 +32,8 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
         trace!("{}) {}", i, rule.to_string(&grammar.basic_grammar));
     }
     #[allow(non_snake_case)]
-    // Not completed - completed
-    let mut situations_by_scanned_symbols: Vec<(Vec<EarleySituation>, Vec<EarleySituation>)> =
+        // Not completed - completed
+        let mut situations_by_scanned_symbols: Vec<(Vec<EarleySituation>, Vec<EarleySituation>)> =
         vec![(Vec::new(), Vec::new()); word.len() + 1];
 
     let mut situations_to_process = VecDeque::new();
@@ -73,7 +75,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                     let to_complete_rule = &grammar.basic_grammar.rules[to_complete.rule_index];
                     if to_complete.dot < to_complete_rule.rhs.len()
                         && to_complete_rule.rhs[to_complete.dot]
-                            == Symbol::NonTerminal(rule.lhs.clone())
+                        == Symbol::NonTerminal(rule.lhs.clone())
                     {
                         let new_situation = EarleySituation {
                             rule_index: to_complete.rule_index,
@@ -98,7 +100,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                     let completer_rule = &grammar.basic_grammar.rules[completer.rule_index];
                     if completer.dot == completer_rule.rhs.len()
                         && Symbol::NonTerminal(completer_rule.lhs.clone())
-                            == rule.rhs[situation.dot]
+                        == rule.rhs[situation.dot]
                     {
                         let new_situation = EarleySituation {
                             rule_index: situation.rule_index,

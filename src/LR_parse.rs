@@ -1,7 +1,8 @@
-use crate::grammar::{AdvancedGrammar, NonTerminal, Rule, Symbol, Terminal};
 use std::cmp::min;
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::hash_map::Entry;
+
+use crate::grammar::{AdvancedGrammar, NonTerminal, Rule, Symbol, Terminal};
 
 type AheadString<const K: usize> = [Terminal; K];
 
@@ -11,12 +12,14 @@ pub struct LRSituation<const K: usize> {
     pub dot: usize,
     pub ahead: AheadString<K>,
 }
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Action {
     Shift,
     Reduce(usize),
     Accept,
 }
+
 impl<const K: usize> LRSituation<K> {
     pub fn get_first(&self, parser: &LRParser<K>) -> HashSet<AheadString<K>> {
         parser.get_first(
@@ -24,7 +27,7 @@ impl<const K: usize> LRSituation<K> {
                 &parser.grammar.basic_grammar.rules[self.rule_index].rhs[self.dot + 1..],
                 &self.ahead.map(|t| Symbol::Terminal(t)),
             ]
-            .concat(),
+                .concat(),
         )
     }
     pub fn is_finished(&self, grammar: &AdvancedGrammar) -> bool {
@@ -68,6 +71,7 @@ impl<const K: usize> LRSituation<K> {
         format!("{} -> {}, {}", lhs, rhs, self.ahead_to_string())
     }
 }
+
 #[derive(Debug)]
 pub struct LRParser<const K: usize> {
     pub grammar: AdvancedGrammar,
@@ -208,7 +212,7 @@ impl<const K: usize> LRParser<K> {
         first
     }
     pub fn get_first(&self, string: Vec<Symbol>) -> HashSet<AheadString<K>> {
-        Self::recursive_get_first(&string,  0, &mut [Self::EOF_SYMBOL; K], &self.first)
+        Self::recursive_get_first(&string, 0, &mut [Self::EOF_SYMBOL; K], &self.first)
     }
 
     fn add_situation(&mut self, situation: LRSituation<K>) -> (usize, bool) {
@@ -250,8 +254,8 @@ impl<const K: usize> LRParser<K> {
             match self.grammar.basic_grammar.rules[situation.rule_index].rhs[situation.dot] {
                 Symbol::Terminal(_) => {}
                 Symbol::NonTerminal(NonTerminal {
-                    index: nonterminal_index,
-                }) => {
+                                        index: nonterminal_index,
+                                    }) => {
                     let new_first = situation.get_first(self);
                     for i in 0..self.grammar.rules_by_nonterminal[nonterminal_index].len() {
                         let rule_index = self.grammar.rules_by_nonterminal[nonterminal_index][i];
@@ -291,7 +295,7 @@ impl<const K: usize> LRParser<K> {
             Entry::Occupied(entry) => match entry.get() {
                 Action::Reduce(_) => {
                     // unsafe {
-                        // println!("{}", (*ptr).to_string());
+                    // println!("{}", (*ptr).to_string());
                     // }
                     return Err(format!(
                         "{:?} / {:?} conflict at vertex {vertex} with ahead {ahead:#?}",
@@ -302,7 +306,7 @@ impl<const K: usize> LRParser<K> {
                 _ => {
                     if !new_is_shift {
                         // unsafe {
-                            // println!("{}", (*ptr).to_string());
+                        // println!("{}", (*ptr).to_string());
                         // }
                         return Err(format!(
                             "{:?} / {:?} conflict at vertex {vertex} with ahead {ahead:#?}",
@@ -350,15 +354,20 @@ impl<const K: usize> LRParser<K> {
         let starting_situations_subset: Vec<usize> =
             vec![(result.add_situation(starting_situation).0).clone()];
         let starting_situations_subset = result.closure(starting_situations_subset);
-        situations_subset_to_process.push_back(result.add_situations_subset(starting_situations_subset).0);
-        
+        situations_subset_to_process
+            .push_back(result.add_situations_subset(starting_situations_subset).0);
+
         while !situations_subset_to_process.is_empty() {
             let current_subset_index = situations_subset_to_process.pop_front().unwrap();
             result.process_subset(current_subset_index, &mut situations_subset_to_process)?;
         }
         Ok(result)
     }
-    fn process_subset(&mut self, current_subset_index: usize, situations_subset_to_process: &mut VecDeque<usize>) -> Result<(), String> {
+    fn process_subset(
+        &mut self,
+        current_subset_index: usize,
+        situations_subset_to_process: &mut VecDeque<usize>,
+    ) -> Result<(), String> {
         let current_subset_ptr =
             &self.index_to_situations_subset[current_subset_index] as *const Vec<usize>;
         let current_subset = unsafe { &*current_subset_ptr };
@@ -368,8 +377,7 @@ impl<const K: usize> LRParser<K> {
             let current_situation = &self.index_to_situation[situation].clone();
             let finished = current_situation.is_finished(&self.grammar);
             if finished {
-                if current_situation.rule_index == self.grammar.basic_grammar.rules.len() - 1
-                {
+                if current_situation.rule_index == self.grammar.basic_grammar.rules.len() - 1 {
                     self.update_action(
                         current_subset_index,
                         &current_situation.ahead,
@@ -388,11 +396,7 @@ impl<const K: usize> LRParser<K> {
             possible_moves
                 .entry(next_symbol)
                 .or_insert_with(Vec::new)
-                .push(
-                    self
-                        .add_situation(current_situation.get_next_situation())
-                        .0,
-                );
+                .push(self.add_situation(current_situation.get_next_situation()).0);
             let beta2_v = current_situation.get_symbols_after_dot(&self.grammar);
             if beta2_v.is_empty() {
                 continue;

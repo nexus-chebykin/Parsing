@@ -101,6 +101,7 @@ mod tests {
         let grammar = setup(Path::new("test_grammars/correct_bracket_sequence/3.bnf"));
         do_earley_test(&grammar, &CBS_INPUTS);
     }
+
     #[test]
     fn test_earley_aeqb_1() {
         let grammar = setup(Path::new("test_grammars/a_eq_b.bnf"));
@@ -134,6 +135,7 @@ mod tests {
         let grammar = setup(Path::new("test_grammars/a_eq_b.bnf"));
         assert!(LRParser::<1>::try_from_advanced_grammar(grammar).is_err());
     }
+
     #[test]
     fn test_lr_0_lr_0() {
         let grammar = setup(Path::new("test_grammars/LR0.bnf"));
