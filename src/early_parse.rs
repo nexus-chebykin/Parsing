@@ -1,11 +1,11 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 use log::trace;
 
 use crate::grammar::{AdvancedGrammar, BasicGrammar, NonTerminal, Rule, Symbol, Terminal};
 
 #[allow(dead_code)]
-const EPSILON: char = 'ε';
+const EPSILON: Symbol = Symbol::Terminal(Terminal { char: 'ε' });
 const CONTAINS: char = '∈';
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -31,18 +31,15 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
     for (i, rule) in grammar.basic_grammar.rules.iter().enumerate() {
         trace!("{}) {}", i, rule.to_string(&grammar.basic_grammar));
     }
-    #[allow(non_snake_case)]
-        // Not completed - completed
-        let mut situations_by_scanned_symbols: Vec<(Vec<EarleySituation>, Vec<EarleySituation>)> =
-        vec![(Vec::new(), Vec::new()); word.len() + 1];
+    // Not completed - completed
+    let mut situations_by_scanned_symbols: Vec<HashMap<Symbol, Vec<EarleySituation>>> =
+        vec![HashMap::new(); word.len() + 1];
 
     let mut situations_to_process = VecDeque::new();
     let mut was = Vec::with_capacity(grammar.basic_grammar.rules.len());
     for i in 0..grammar.basic_grammar.rules.len() {
         was.push(vec![
-            vec![-1; word.len() + 1];
-            grammar.basic_grammar.rules[i].rhs.len() + 1
-        ]);
+            vec![-1; word.len() + 1]; grammar.basic_grammar.rules[i].rhs.len() + 1]);
     }
     situations_to_process.push_back(EarleySituation {
         rule_index: grammar.basic_grammar.rules.len() - 1,
@@ -71,7 +68,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
             let rule = &grammar.basic_grammar.rules[situation.rule_index];
             if situation.dot == rule.rhs.len() {
                 // Situation is complete
-                for to_complete in &situations_by_scanned_symbols[situation.asker].0 {
+                for to_complete in situations_by_scanned_symbols[situation.asker].get(&Symbol::NonTerminal(rule.lhs)).unwrap_or(&vec![]) {
                     let to_complete_rule = &grammar.basic_grammar.rules[to_complete.rule_index];
                     if to_complete.dot < to_complete_rule.rhs.len()
                         && to_complete_rule.rhs[to_complete.dot]
@@ -93,15 +90,13 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                         }
                     }
                 }
-                situations_by_scanned_symbols[current_layer].1.push(situation);
+                situations_by_scanned_symbols[current_layer].entry(EPSILON).or_default().push(situation);
             } else {
                 // Maybe we can be completed further?
-                for completer in &situations_by_scanned_symbols[current_layer].1 {
+                for completer in situations_by_scanned_symbols[current_layer].get(&EPSILON).unwrap_or(&vec![]) {
                     let completer_rule = &grammar.basic_grammar.rules[completer.rule_index];
-                    if completer.dot == completer_rule.rhs.len()
-                        && Symbol::NonTerminal(completer_rule.lhs.clone())
-                        == rule.rhs[situation.dot]
-                    {
+                    assert_eq!(completer.dot, completer_rule.rhs.len());
+                    if Symbol::NonTerminal(completer_rule.lhs.clone()) == rule.rhs[situation.dot] {
                         let new_situation = EarleySituation {
                             rule_index: situation.rule_index,
                             dot: situation.dot + 1,
@@ -141,50 +136,42 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                     }
                     Symbol::Terminal(_) => {}
                 }
-                situations_by_scanned_symbols[current_layer].0.push(situation);
+                situations_by_scanned_symbols[current_layer].entry(rule.rhs[situation.dot]).or_default().push(situation);
             }
         }
         if current_layer == word.len() {
             break;
         }
+        let char_to_scan = word.as_bytes()[current_layer] as char;
         current_layer += 1;
-        for situation in &situations_by_scanned_symbols[current_layer - 1].0 {
-            let rule = &grammar.basic_grammar.rules[situation.rule_index];
-            if situation.dot < rule.rhs.len() {
-                match rule.rhs[situation.dot] {
-                    Symbol::NonTerminal(_) => {}
-                    Symbol::Terminal(Terminal { char: c }) => {
-                        if c == word.as_bytes()[current_layer - 1] as char {
-                            let new_situation = EarleySituation {
-                                rule_index: situation.rule_index,
-                                dot: situation.dot + 1,
-                                asker: situation.asker,
-                            };
-                            let added = add_to_processing_queue(
-                                EarleySituation {
-                                    rule_index: situation.rule_index,
-                                    dot: situation.dot + 1,
-                                    asker: situation.asker,
-                                },
-                                current_layer as i32,
-                                &mut situations_to_process,
-                            );
-                            if added {
-                                trace!(
-                                    "{} {CONTAINS} D{}: was scanned from {} {CONTAINS} D{}",
-                                    new_situation.to_string(&grammar.basic_grammar),
-                                    current_layer,
-                                    situation.to_string(&grammar.basic_grammar),
-                                    current_layer - 1
-                                );
-                            }
-                        }
-                    }
-                }
+        for situation in situations_by_scanned_symbols[current_layer - 1].get(
+            &Symbol::Terminal(Terminal { char: char_to_scan })).unwrap_or(&vec![]) {
+            let new_situation = EarleySituation {
+                rule_index: situation.rule_index,
+                dot: situation.dot + 1,
+                asker: situation.asker,
+            };
+            let added = add_to_processing_queue(
+                EarleySituation {
+                    rule_index: situation.rule_index,
+                    dot: situation.dot + 1,
+                    asker: situation.asker,
+                },
+                current_layer as i32,
+                &mut situations_to_process,
+            );
+            if added {
+                trace!(
+                    "{} {CONTAINS} D{}: was scanned from {} {CONTAINS} D{}",
+                    new_situation.to_string(&grammar.basic_grammar),
+                    current_layer,
+                    situation.to_string(&grammar.basic_grammar),
+                    current_layer - 1
+                );
             }
         }
     }
-    situations_by_scanned_symbols.last().unwrap().1.contains(&EarleySituation {
+    situations_by_scanned_symbols.last().unwrap().get(&EPSILON).unwrap_or(&vec![]).contains(&EarleySituation {
         rule_index: grammar.basic_grammar.rules.len() - 1,
         dot: 1,
         asker: 0,
