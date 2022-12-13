@@ -18,6 +18,9 @@ mod grammar;
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use crate::grammar::{Symbol, Terminal, EPSILON_SYMBOL, EPSILON_TERMINAL};
+    use crate::LR_parse::EOF_SYMBOL;
     use super::*;
 
     fn setup(path: &Path) -> AdvancedGrammar {
@@ -173,6 +176,33 @@ mod tests {
         assert!(LR.is_ok());
         do_LR_test(&LR.unwrap(), &LR2_INPUTS);
     }
+
+    #[test]
+    fn test_lr_build_first_lr_2() {
+        let grammar = setup(Path::new("test_grammars/LR2_min.bnf"));
+        let first = LRParser::<2>::build_first(&grammar);
+        assert_eq!(first.len(), grammar.basic_grammar.nonterminals_mapping.name_to_index.len());
+        let bb = [Terminal { char: 'b' }, Terminal { char: 'b' }];
+        let b = [Terminal { char: 'b' }, EOF_SYMBOL];
+        assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["S'"]], HashSet::from([bb]));
+        assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["S"]], HashSet::from([bb]));
+        assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["A"]], HashSet::from([b, bb]));
+    }
+
+    #[test]
+    fn test_lr_build_first_lr_0() {
+        let grammar = setup(Path::new("test_grammars/LR0.bnf"));
+        let first = LRParser::<2>::build_first(&grammar);
+        // While the grammar is LR-0, the first sets are 2 symbols
+        assert_eq!(first.len(), grammar.basic_grammar.nonterminals_mapping.name_to_index.len());
+        let ab = [Terminal { char: 'a' }, Terminal { char: 'b' }];
+        let a = [Terminal { char: 'a' }, EOF_SYMBOL];
+        assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["S'"]], HashSet::from([ab]));
+        assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["S"]], HashSet::from([ab]));
+        assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["A"]], HashSet::from([a]));
+    }
+    
+    
 }
 
 fn main() {

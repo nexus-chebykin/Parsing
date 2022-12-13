@@ -7,7 +7,9 @@ use std::io::Read;
 use std::path::{Iter, Path};
 use std::vec;
 
-const EPSILON_SYMBOL: Terminal = Terminal { char: 'ε' };
+pub const EPSILON_TERMINAL: Terminal = Terminal { char: 'ε' };
+pub const EPSILON_SYMBOL: Symbol = Symbol::Terminal(EPSILON_TERMINAL);
+
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Terminal {

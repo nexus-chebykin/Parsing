@@ -5,6 +5,7 @@ use std::collections::hash_map::Entry;
 use crate::grammar::{AdvancedGrammar, NonTerminal, Rule, Symbol, Terminal};
 
 type AheadString<const K: usize> = [Terminal; K];
+pub const EOF_SYMBOL: Terminal = Terminal { char: '¥' };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct LRSituation<const K: usize> {
@@ -85,9 +86,7 @@ pub struct LRParser<const K: usize> {
 }
 
 impl<const K: usize> LRParser<K> {
-    const EOF_SYMBOL: Terminal = Terminal { char: '¥' };
-    const EOF_AHEAD: AheadString<K> = [Self::EOF_SYMBOL; K];
-
+    const EOF_AHEAD: AheadString<K> = [EOF_SYMBOL; K];
     fn recursive_build_first(
         // It would be nice to have both recursive functions merged together, but idc
         rule: &Rule,
@@ -112,13 +111,13 @@ impl<const K: usize> LRParser<K> {
                     current_first,
                     new_first,
                 );
-                to_fill[position_in_fill] = Self::EOF_SYMBOL;
+                to_fill[position_in_fill] = EOF_SYMBOL;
             }
             Symbol::NonTerminal(nonterminal) => {
                 for possible_ahead in current_first[nonterminal.index].iter() {
                     let mut new_position_in_fill = position_in_fill;
                     for (i, c) in possible_ahead.iter().enumerate() {
-                        if *c == Self::EOF_SYMBOL || position_in_fill + i >= K {
+                        if *c == EOF_SYMBOL || position_in_fill + i >= K {
                             new_position_in_fill = position_in_fill + i;
                             break;
                         }
@@ -133,7 +132,7 @@ impl<const K: usize> LRParser<K> {
                         new_first,
                     );
                     for i in position_in_fill..new_position_in_fill {
-                        to_fill[i] = Self::EOF_SYMBOL;
+                        to_fill[i] = EOF_SYMBOL;
                     }
                 }
             }
@@ -141,7 +140,7 @@ impl<const K: usize> LRParser<K> {
         result
     }
 
-    pub fn recursive_get_first(
+    fn recursive_get_first(
         alpha: &[Symbol],
         position_in_fill: usize,
         to_fill: &mut AheadString<K>,
@@ -161,13 +160,13 @@ impl<const K: usize> LRParser<K> {
                     to_fill,
                     first,
                 ));
-                to_fill[position_in_fill] = Self::EOF_SYMBOL;
+                to_fill[position_in_fill] = EOF_SYMBOL;
             }
             Symbol::NonTerminal(nonterminal) => {
                 for possible_ahead in first[nonterminal.index].iter() {
                     let mut new_position_in_fill = position_in_fill;
                     for (i, c) in possible_ahead.iter().enumerate() {
-                        if *c == Self::EOF_SYMBOL || position_in_fill + i >= K {
+                        if *c == EOF_SYMBOL || position_in_fill + i >= K {
                             new_position_in_fill = position_in_fill + i;
                             break;
                         }
@@ -180,7 +179,7 @@ impl<const K: usize> LRParser<K> {
                         first,
                     ));
                     for i in position_in_fill..new_position_in_fill {
-                        to_fill[i] = Self::EOF_SYMBOL;
+                        to_fill[i] = EOF_SYMBOL;
                     }
                 }
             }
@@ -203,7 +202,7 @@ impl<const K: usize> LRParser<K> {
             changed = false;
             let mut new_first = first.clone();
             for rule in grammar.basic_grammar.rules.iter() {
-                let mut to_fill = [Self::EOF_SYMBOL; K];
+                let mut to_fill = [EOF_SYMBOL; K];
                 changed |=
                     Self::recursive_build_first(rule, 0, 0, &mut to_fill, &first, &mut new_first);
             }
@@ -212,7 +211,7 @@ impl<const K: usize> LRParser<K> {
         first
     }
     pub fn get_first(&self, string: Vec<Symbol>) -> HashSet<AheadString<K>> {
-        Self::recursive_get_first(&string, 0, &mut [Self::EOF_SYMBOL; K], &self.first)
+        Self::recursive_get_first(&string, 0, &mut [EOF_SYMBOL; K], &self.first)
     }
 
     fn add_situation(&mut self, situation: LRSituation<K>) -> (usize, bool) {
@@ -464,12 +463,12 @@ impl<const K: usize> LRParser<K> {
         stack.push(0);
         while !stack.is_empty() {
             // let current_ahead: AheadString =
-            //     input.get(input_index).unwrap_or(&Self::EOF_SYMBOL).clone();
+            //     input.get(input_index).unwrap_or(&EOF_SYMBOL).clone();
             let current_ahead: AheadString<K> = input
                 [input_index..min(input_index + K, input.len())]
                 .iter()
                 .cloned()
-                .chain(std::iter::repeat(&Self::EOF_SYMBOL).cloned())
+                .chain(std::iter::repeat(&EOF_SYMBOL).cloned())
                 .take(K)
                 .collect::<Vec<_>>()
                 .try_into()

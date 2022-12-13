@@ -2,10 +2,8 @@ use std::collections::{HashMap, VecDeque};
 
 use log::trace;
 
-use crate::grammar::{AdvancedGrammar, BasicGrammar, NonTerminal, Rule, Symbol, Terminal};
-
+use crate::grammar::{AdvancedGrammar, BasicGrammar, NonTerminal, Rule, Symbol, Terminal, EPSILON_SYMBOL};
 #[allow(dead_code)]
-const EPSILON: Symbol = Symbol::Terminal(Terminal { char: 'ε' });
 const CONTAINS: char = '∈';
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -24,7 +22,7 @@ impl EarleySituation {
     }
 }
 
-pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
+pub fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
     // Add new starting nonterminal
     trace!("New parse, parsing word: {}", word);
     trace!("The rules are:");
@@ -90,10 +88,10 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
                         }
                     }
                 }
-                situations_by_scanned_symbols[current_layer].entry(EPSILON).or_default().push(situation);
+                situations_by_scanned_symbols[current_layer].entry(EPSILON_SYMBOL).or_default().push(situation);
             } else {
                 // Maybe we can be completed further?
-                for completer in situations_by_scanned_symbols[current_layer].get(&EPSILON).unwrap_or(&vec![]) {
+                for completer in situations_by_scanned_symbols[current_layer].get(&EPSILON_SYMBOL).unwrap_or(&vec![]) {
                     let completer_rule = &grammar.basic_grammar.rules[completer.rule_index];
                     assert_eq!(completer.dot, completer_rule.rhs.len());
                     if Symbol::NonTerminal(completer_rule.lhs.clone()) == rule.rhs[situation.dot] {
@@ -171,7 +169,7 @@ pub(crate) fn earley_parse(grammar: AdvancedGrammar, word: &String) -> bool {
             }
         }
     }
-    situations_by_scanned_symbols.last().unwrap().get(&EPSILON).unwrap_or(&vec![]).contains(&EarleySituation {
+    situations_by_scanned_symbols.last().unwrap().get(&EPSILON_SYMBOL).unwrap_or(&vec![]).contains(&EarleySituation {
         rule_index: grammar.basic_grammar.rules.len() - 1,
         dot: 1,
         asker: 0,
