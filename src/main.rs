@@ -3,7 +3,7 @@
 #![allow(unused_imports)]
 
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 // use log::trace;
 use env_logger;
@@ -201,8 +201,24 @@ mod tests {
         assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["S"]], HashSet::from([ab]));
         assert_eq!(first[grammar.basic_grammar.nonterminals_mapping.name_to_index["A"]], HashSet::from([a]));
     }
-    
-    
+}
+
+use clap::{Parser, ValueEnum};
+use crate::ParserType::Earley;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum ParserType {
+    Earley,
+    LR,
+}
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long, value_enum)]
+    parser_type: ParserType,
+    #[clap(short, long, value_name = "FILE")]
+    grammar: PathBuf,
 }
 
 fn main() {
@@ -212,13 +228,39 @@ fn main() {
     //         buf, "{}", record.args()
     //     )
     // }).init();
-
-    let grammar = AdvancedGrammar::from_basic_grammar(BasicGrammar::from_file(Path::new(
-        "test_grammars/LR1_min.bnf",
-    )));
-    let LR = LRParser::<1>::try_from_advanced_grammar(grammar.clone()).unwrap();
-    let word = "aabb".to_string();
-    let result_earley = earley_parse(grammar, &word);
-    let result_lr = LR.parse(&word);
-    assert_eq!(result_earley, result_lr.is_ok());
+    let args = Args::parse();
+    let grammar = AdvancedGrammar::from_basic_grammar(BasicGrammar::from_file(&args.grammar));
+    if args.parser_type == Earley {
+        let mut input = String::new();
+        while let Ok(_) = io::stdin().read_line(&mut input) {
+            {
+                let input = input.trim();
+                if input.is_empty() {
+                    break;
+                }
+                let result = earley_parse(grammar.clone(), &input.to_string());
+                println!("{:?}", result);
+            }
+            input.clear();
+        }
+    } else {
+        let parser = LRParser::<1>::try_from_advanced_grammar(grammar).unwrap();
+        let mut input = String::new();
+        while let Ok(_) = io::stdin().read_line(&mut input) {
+            {
+                let input = input.trim();
+                if input.is_empty() {
+                    break;
+                }
+                let result = parser.parse(&input);
+                println!("{:?}", result);
+            }
+            input.clear();
+        }
+    }
+    // let LR = LRParser::<1>::try_from_advanced_grammar(grammar.clone()).unwrap();
+    // let word = "aabb".to_string();
+    // let result_earley = earley_parse(grammar, &word);
+    // let result_lr = LR.parse(&word);
+    // assert_eq!(result_earley, result_lr.is_ok());
 }

@@ -5,6 +5,7 @@ use std::collections::hash_map::Entry;
 use crate::grammar::{AdvancedGrammar, NonTerminal, Rule, Symbol, Terminal};
 
 type AheadString<const K: usize> = [Terminal; K];
+
 pub const EOF_SYMBOL: Terminal = Terminal { char: '¥' };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -42,11 +43,8 @@ impl<const K: usize> LRSituation<K> {
     }
 
     pub fn get_symbols_after_dot(&self, grammar: &AdvancedGrammar) -> Vec<Symbol> {
-        if self.dot >= grammar.basic_grammar.rules[self.rule_index].rhs.len()
-            || grammar.basic_grammar.rules[self.rule_index].rhs[self.dot].is_nonterminal()
-        {
-            return vec![];
-        }
+        assert!(self.dot < grammar.basic_grammar.rules[self.rule_index].rhs.len() &&
+            !grammar.basic_grammar.rules[self.rule_index].rhs[self.dot].is_nonterminal());
         let mut res = grammar.basic_grammar.rules[self.rule_index].rhs[self.dot..].to_vec();
         res.extend(&self.ahead.map(|t| Symbol::Terminal(t)));
         res
@@ -373,7 +371,7 @@ impl<const K: usize> LRParser<K> {
         // I dont really like it, but do not know any better solution
         let mut possible_moves = HashMap::new();
         for situation in current_subset.iter().cloned() {
-            let current_situation = &self.index_to_situation[situation].clone();
+            let current_situation = self.index_to_situation[situation].clone();
             let finished = current_situation.is_finished(&self.grammar);
             if finished {
                 if current_situation.rule_index == self.grammar.basic_grammar.rules.len() - 1 {
@@ -396,10 +394,15 @@ impl<const K: usize> LRParser<K> {
                 .entry(next_symbol)
                 .or_insert_with(Vec::new)
                 .push(self.add_situation(current_situation.get_next_situation()).0);
-            let beta2_v = current_situation.get_symbols_after_dot(&self.grammar);
-            if beta2_v.is_empty() {
+
+            if next_symbol.is_nonterminal() {
+                // Next symbol is nonterminal, we dont want EFF, so we skip it
+                // We can do that because our subset is closured => all predicts are done => 
+                // we will eventually find another situation with same EFF,
+                // but its first symbol would be terminal => we dont need EFF
                 continue;
             }
+            let beta2_v = current_situation.get_symbols_after_dot(&self.grammar);
             let first_beta2_v = self.get_first(beta2_v);
             for possible_ahead in first_beta2_v {
                 self.update_action(current_subset_index, &possible_ahead, Action::Shift)?;
